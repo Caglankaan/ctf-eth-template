@@ -27,9 +27,11 @@ load_dotenv()
 INTERNAL_PORT = 8555
 PLAYER_PORT = 8545
 PLAYER_MNEMONIC = None
+ADMIN_MNEMONIC = None
 RUN_MAIN_PID = None
 RUN_PLAYER_PID = None
 anvil_block_time = False
+CHANGE_ADMIN_MNEMONIC = False
 
 PROJECT = None
 
@@ -152,11 +154,11 @@ def ganache_run(data: AnvilData):
 
 
 def run_main():
-    global RUN_MAIN_PID, anvil_block_time
+    global RUN_MAIN_PID, anvil_block_time, ADMIN_MNEMONIC
 
     data = AnvilData(
         port=INTERNAL_PORT,
-        mnemonic=_PRIVATE_CONFIG.get('MNEMONIC'),
+        mnemonic=ADMIN_MNEMONIC,
         rpc=_PUBLIC_CONFIG.get('RPC', ''),
         block=_PUBLIC_CONFIG.get('BLOCK_NUMBER', ''),
         extra=_PRIVATE_CONFIG.get('extra', ''),
@@ -171,7 +173,7 @@ def run_main():
     RUN_MAIN_PID = p.pid
     
     p.wait()
-
+    #0x4cA35d80Dd9ab86aEeF1a0EC296Fa20Ed91d066A
 
 def run_player():
     global PLAYER_MNEMONIC, RUN_PLAYER_PID,  anvil_block_time
@@ -201,7 +203,7 @@ def run_player():
 STATE = {}
 
 def deploy(_network='', player_private_keys=[], owner_private_keys=[], gas_strategy=False):
-    global STATE, PROJECT, PLAYER_MNEMONIC
+    global STATE, PROJECT, PLAYER_MNEMONIC, ADMIN_MNEMONIC
     if _network == 'goerli':
         
         network.connect(_network)
@@ -242,7 +244,7 @@ def deploy(_network='', player_private_keys=[], owner_private_keys=[], gas_strat
 
         STATE = {}
         
-        deployer = accounts_from_mnemonic(_PRIVATE_CONFIG.get('MNEMONIC'), count=10) 
+        deployer = accounts_from_mnemonic(ADMIN_MNEMONIC, count=10) 
         player = accounts_from_mnemonic(PLAYER_MNEMONIC, count=10) 
 
         project.run('private/challenge_blueteam', 'deploy', [STATE, deployer, player])
@@ -274,9 +276,10 @@ def dump_project_deploy(is_local=True):
     return obj
 
 def attack_to_contract(is_local = True, player_private_keys=[], owner_private_keys=[]):
+    global ADMIN_MNEMONIC
     
     if is_local:
-        deployer = accounts_from_mnemonic(_PRIVATE_CONFIG.get('MNEMONIC'), count=10) 
+        deployer = accounts_from_mnemonic(ADMIN_MNEMONIC, count=10) 
         player = accounts_from_mnemonic(PLAYER_MNEMONIC, count=10)
 
     else:
@@ -296,13 +299,14 @@ def attack_to_contract(is_local = True, player_private_keys=[], owner_private_ke
 
 
 def reset(is_local=True, player_private_keys=[], owner_private_keys=[]):
-    global STATE, PROJECT, PLAYER_MNEMONIC, RUN_PLAYER_PID, RUN_MAIN_PID
+    global STATE, PROJECT, PLAYER_MNEMONIC, RUN_PLAYER_PID, RUN_MAIN_PID, ADMIN_MNEMONIC, CHANGE_ADMIN_MNEMONIC
     STATE = {}
     if is_local:
         chain.reset()
         #os.kill(RUN_PLAYER_PID, SIGKILL)
         #os.kill(RUN_MAIN_PID, SIGKILL)
         PLAYER_MNEMONIC = ''
+        ADMIN_MNEMONIC = generate_mnemonic(12, "english") if CHANGE_ADMIN_MNEMONIC else ADMIN_MNEMONIC
         if network.is_connected():
             logger.info("disconnecting network")
             network.disconnect()
@@ -310,8 +314,6 @@ def reset(is_local=True, player_private_keys=[], owner_private_keys=[]):
             logger.info("network is not connected")
         deploy_local(False)
         return
-        #deployer = accounts_from_mnemonic(_PRIVATE_CONFIG.get('MNEMONIC'), count=10) 
-        #player = accounts_from_mnemonic(PLAYER_MNEMONIC, count=10)
     else:
         if player_private_keys == [] or owner_private_keys == []:
             ATTACKER_PRIVATE_KEY = os.getenv('DEFAULT_ATTACKER_PRIVATE_KEY')
@@ -371,22 +373,29 @@ def deploy_goerli(run_exploit, player_private_keys=[], owner_private_keys=[], ga
         attack_to_contract(is_local=False, player_private_keys=player_private_keys, owner_private_keys=owner_private_keys)
 
 def main():
-    global anvil_block_time
+    global anvil_block_time, ADMIN_MNEMONIC, CHANGE_ADMIN_MNEMONIC
     
     parser = argparse.ArgumentParser(
                     prog = 'BlueTeam CTF Platform',
-                    description = 'Deploys contracts&exploits'
+                    description = 'Deploys contracts given under public/challenge, and exploit & reset them.'
             )
     parser.add_argument('--network',default='local', help='local or goerli')
-    parser.add_argument('--run_exploit',default=False, help='Run exploit right after deploy. False as default.')
-    parser.add_argument('--gas_strategy',default=False, help='Enable gas strategy. False as default.', type=bool)
     parser.add_argument('--player_private_keys', help='Add private keys.\n Usage: --private_keys KEY1,KEY2,KEY3', default='', type=str)
     parser.add_argument('--owner_private_keys', help='Add private keys.\n Usage: --private_keys KEY1,KEY2,KEY3', default='', type=str)
-    parser.add_argument('--delay_block_mine', help='False for mining blocks instantly. True will wait 1 second on local network.', default=False, type=bool)
+    parser.add_argument('--run_exploit', help='Add this flag to run exploit right after first deploy.', action='store_true')
+    parser.add_argument('--gas_strategy', help='Add this flag to enable gas strategy. ', action='store_true')
+    parser.add_argument('--delay_block_mine', help='Add this flag to make anvil/ganache wait 1 second on local network.', action='store_true')
+    parser.add_argument('--change_admin_mnemonic', help='Add this flag to deploy same contract to different address on local network every time.', action='store_true')
 
     args = parser.parse_args()
     player_private_keys = [item for item in args.player_private_keys.split(',')]
     owner_private_keys = [item for item in args.owner_private_keys.split(',')]
+
+    if args.change_admin_mnemonic:
+        CHANGE_ADMIN_MNEMONIC = True
+        ADMIN_MNEMONIC = generate_mnemonic(12, "english")
+    else:
+        ADMIN_MNEMONIC = _PRIVATE_CONFIG.get('MNEMONIC')
 
     anvil_block_time = args.delay_block_mine
     

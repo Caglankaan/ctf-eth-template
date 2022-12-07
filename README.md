@@ -169,24 +169,23 @@ There are few options that can be set when executing the platform.
 
 ```
 ./dev_blueteam.py --help
-usage: BlueTeam CTF Platform [-h] [--network NETWORK] [--run_exploit RUN_EXPLOIT] [--gas_strategy GAS_STRATEGY] [--player_private_keys PLAYER_PRIVATE_KEYS]
-                             [--owner_private_keys OWNER_PRIVATE_KEYS] [--delay_block_mine DELAY_BLOCK_MINE]
+usage: BlueTeam CTF Platform [-h] [--network NETWORK] [--player_private_keys PLAYER_PRIVATE_KEYS] [--owner_private_keys OWNER_PRIVATE_KEYS] [--run_exploit] [--gas_strategy]
+                             [--delay_block_mine] [--change_admin_mnemonic]
 
-Deploys contracts&exploits
+Deploys contracts given under public/challenge, and exploit & reset them.
 
 options:
   -h, --help            show this help message and exit
   --network NETWORK     local or goerli
-  --run_exploit RUN_EXPLOIT
-                        Run exploit right after deploy. False as default.
-  --gas_strategy GAS_STRATEGY
-                        Enable gas strategy. False as default.
   --player_private_keys PLAYER_PRIVATE_KEYS
                         Add private keys. Usage: --private_keys KEY1,KEY2,KEY3
   --owner_private_keys OWNER_PRIVATE_KEYS
                         Add private keys. Usage: --private_keys KEY1,KEY2,KEY3
-  --delay_block_mine DELAY_BLOCK_MINE
-                        False for mining blocks instantly. True will wait 1 second on local network.
+  --run_exploit         Add this flag to run exploit right after first deploy.
+  --gas_strategy        Add this flag to enable gas strategy.
+  --delay_block_mine    Add this flag to make anvil/ganache wait 1 second on local network.
+  --change_admin_mnemonic
+                        Add this flag to deploy same contract to different address on local network every time.
 ```
  - In default, all of those flags are False/empty, so if you start the platform without any flag it will setup normal local network.
 
